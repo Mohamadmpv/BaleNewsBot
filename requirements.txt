@@ -1,0 +1,4 @@
+feedparser
+requests
+baleRobot
+beautifulsoup4
