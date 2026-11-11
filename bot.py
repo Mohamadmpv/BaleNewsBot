@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from baleRobot import BaleClient
 
 # 🔴 توکن ربات خود را اینجا بگذارید
-TOKEN = "905647704:TQ92LJotFVjKZHX4-F0VYc1XQZ6sSV0D9e0"
+TOKEN = "905647704:LYXah3V2nO_acBfjKOELEnzcQY0oN3ZzWp4"
 client = BaleClient(TOKEN)
 
 # ==========================================
