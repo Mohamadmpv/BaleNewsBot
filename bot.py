@@ -183,12 +183,8 @@ try:
         KNOWN_USERS.add(str(message.chat.id))
         
         if message.text == "/start":
-welcome_text = (
-    "👋 سلام! به ربات خبری خوش آمدید.\n\n"
-    "من اخبار مهم استخدامی، حقوق و دستمزد، معیشت، کالابرگ و بخشنامه‌های اداری را به صورت خودکار برای شما ارسال می‌کنم.\n\n"
-    "⏳ در حال آماده‌سازی ۵ خبر اول برای شما..."
-)
-            client.send_message(message.chat.id, welcome_text)
+            welcome_msg = "👋 سلام! به ربات خبری خوش آمدید.\n\nمن اخبار مهم استخدامی، حقوق و دستمزد، معیشت، کالابرگ و بخشنامه‌های اداری را به صورت خودکار برای شما ارسال می‌کنم.\n\n⏳ در حال آماده‌سازی ۵ خبر اول برای شما..."
+            client.send_message(message.chat.id, welcome_msg)
             send_news(message.chat.id, 5)
             
     # ذخیره آخرین آیدی
