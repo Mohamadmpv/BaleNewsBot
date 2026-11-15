@@ -1,18 +1,37 @@
 name: Bale News Bot
+
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch: {}
+    - cron: '0 * * * *'   # هر ۱ ساعت یک‌بار اجرا می‌شود
+  workflow_dispatch: {}    # اجازه می‌دهد دستی هم اجرا کنید
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write     # برای ذخیره فایل‌های حافظه (خبرها و کاربران)
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - env:
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run bot script
+        env:
           BALE_TOKEN: ${{ secrets.BALE_TOKEN }}
           BALE_CHANNEL: ${{ secrets.BALE_CHANNEL }}
         run: python bot.py
+      
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add sent_news.txt users.txt
+          git commit -m "Update sent news and users list" || echo "No changes to commit"
+          git push
