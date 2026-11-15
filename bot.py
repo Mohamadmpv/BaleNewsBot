@@ -11,22 +11,19 @@ TOKEN = "905647704:tqMl5WBTTYC-cVRflr1fi9Y79OEi_ZKWJJA"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱. تابع خواندن متن (حداقل یک پاراگراف)
+# ۱. تابع خواندن متن (با تایم‌اوت ۵ ثانیه)
 # ==========================================
 def get_news_summary(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        # تایم‌اوت را به ۵ ثانیه کاهش دادیم تا معطل نشود
-        response = requests.get(url, headers=headers, timeout=5) 
+        response = requests.get(url, headers=headers, timeout=5) # تایم‌اوت کم برای جلوگیری از هنگ کردن
         soup = BeautifulSoup(response.text, 'html.parser')
         
         summary = ""
-        # مخصوص ایسنا
         isna_div = soup.find('div', class_='news-text') or soup.find('div', itemprop='articleBody')
         if isna_div:
             summary = isna_div.get_text(strip=True)
             
-        # مخصوص مهر و بقیه
         if not summary:
             for p in soup.find_all('p'):
                 text = p.get_text(strip=True)
@@ -69,9 +66,15 @@ def get_shenasnameh_news():
     return news_list[:5]
 
 # ==========================================
-# ۳. خواندن از خبرگزاری‌ها (فقط مهر و ایسنا برای سرعت بیشتر)
+# ۳. خواندن از خبرگزاری‌ها (تمام منابع قبلی)
 # ==========================================
-RSS_FEEDS = ["https://www.mehrnews.com/rss", "https://www.isna.ir/rss"]
+RSS_FEEDS = [
+    "https://www.mehrnews.com/rss", 
+    "https://www.isna.ir/rss", 
+    "https://www.ilna.ir/feeds/",
+    "https://www.khabaronline.ir/rss?kw=حقوق+و+دستمزد"
+]
+
 KEYWORDS_MUST = ["حقوق و دستمزد", "دستمزد کارگران", "استخدام", "آزمون استخدامی", "کالابرگ", "بازنشستگی", "بخشنامه", "قرارداد کار", "معیشت"]
 KEYWORDS_IGNORE = ["حقوق بشر", "سیاسی", "زندان", "دادگاه", "کروبی", "انتخابات", "فوتبال", "ورزش", "سفر", "دیدار", "تشییع"]
 
