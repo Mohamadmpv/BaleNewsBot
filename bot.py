@@ -11,7 +11,7 @@ TOKEN = "905647704:Ml_O1U8Oxbi07Spn_vacNhEftkeZ2UtDO-Y"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱. تابع خواندن متن (تایم‌اوت ۵ ثانیه برای جلوگیری از هنگ)
+# ۱. تابع خواندن متن (با تایم‌اوت ۵ ثانیه)
 # ==========================================
 def get_news_summary(url):
     try:
@@ -107,7 +107,7 @@ def get_news_from_rss(limit=5):
     return all_news[:limit]
 
 # ==========================================
-# ۴. حافظه‌ها (جلوگیری از تکرار خبر و ذخیره کاربران)
+# ۴. حافظه‌ها
 # ==========================================
 SENT_NEWS_FILE = "sent_news.txt"
 USERS_FILE = "users.txt"
@@ -165,17 +165,17 @@ def send_news(chat_id, count):
 print("🤖 ربات روشن شد...")
 
 # ==========================================
-# ۵. بخش دریافت پیام‌های جدید (استارت)
+# ۵. بخش دریافت پیام‌های جدید (با پیام خوش‌آمدگویی جدید)
 # ==========================================
 try:
-    last_update_id = 0
-    if os.path.exists("last_id.txt"):
-        with open("last_id.txt", "r") as f:
-            last_update_id = int(f.read().strip())
-            
-    updates = client.get_updates(offset=last_update_id + 1, timeout=5)
+    # در هر اجرا، از صفر پیام‌ها را می‌خوانیم تا پیام‌های جدید از دست نروند
+    updates = client.get_updates(offset=0, timeout=5)
+    
+    max_update_id = 0
     for update in updates:
-        last_update_id = update.update_id
+        if update.update_id > max_update_id:
+            max_update_id = update.update_id
+            
         message = update.message
         if not message or not message.text: continue
         
@@ -183,16 +183,27 @@ try:
         KNOWN_USERS.add(str(message.chat.id))
         
         if message.text == "/start":
-            client.send_message(message.chat.id, "👋 سلام! در حال آماده‌سازی ۵ خبر اول...")
+            welcome_text = (
+                "👋 سلام! به ربات خبری خوش آمدید.\n\n"
+                "من اخبار مهم استخدامی، حقوق و دستمزد، کالابرگ و بخشنامه‌ها را برایتان می‌فرستم.\n\n"
+                "⏰ **زمان‌بندی ارسال:**\n"
+                "• اگر سیستم شخصی من روشن باشد، به محض دریافت خبر جدید، آن را برایتان ارسال می‌کنم.\n"
+                "• اگر سیستم شخصی خاموش باشد، ربات روی سرور گیت‌هاب فعال می‌شود و **هر یک ساعت** یک‌بار اخبار جدید را برایتان می‌فرستد.\n\n"
+                "⏳ در حال آماده‌سازی ۵ خبر اول..."
+            )
+            client.send_message(message.chat.id, welcome_text)
             send_news(message.chat.id, 5)
             
-    with open("last_id.txt", "w") as f:
-        f.write(str(last_update_id))
+    # ذخیره آخرین آیدی
+    if max_update_id > 0:
+        with open("last_id.txt", "w") as f:
+            f.write(str(max_update_id))
+            
 except Exception as e:
     print(f"خطا در دریافت پیام‌ها: {e}")
 
 # ==========================================
-# ۶. بخش ارسال خودکار به همه کاربران
+# ۶. بخش ارسال خودکار به همه کاربران (برای گیت‌هاب)
 # ==========================================
 print(f"در حال ارسال خودکار به {len(KNOWN_USERS)} کاربر...")
 auto_news = get_all_news(limit=3)
