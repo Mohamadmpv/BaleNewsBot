@@ -11,7 +11,7 @@ TOKEN = "905647704:Ml_O1U8Oxbi07Spn_vacNhEftkeZ2UtDO-Y"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱. تابع خواندن متن (حداقل یک پاراگراف کامل)
+# ۱. تابع خواندن متن (حداقل یک پاراگراف)
 # ==========================================
 def get_news_summary(url):
     try:
@@ -29,8 +29,7 @@ def get_news_summary(url):
                 text = p.get_text(strip=True)
                 if len(text) > 60 and "کلیک" not in text and "خبرگزاری" not in text:
                     summary += text + " "
-                    if len(summary) > 600: break # حداقل یک پاراگراف
-
+                    if len(summary) > 600: break 
         return summary.strip()
     except:
         return ""
@@ -66,7 +65,7 @@ def is_recent(entry):
     published = entry.get('published_parsed') or entry.get('updated_parsed')
     if not published: return False
     news_date = datetime.fromtimestamp(time.mktime(published))
-    return (datetime.now() - news_date) < timedelta(days=2) # فیلتر ۴۸ ساعت
+    return (datetime.now() - news_date) < timedelta(days=2)
 
 def get_news_from_rss():
     all_news = []
@@ -87,7 +86,7 @@ def get_news_from_rss():
     return all_news
 
 # ==========================================
-# ۴. مدیریت حافظه (برای جلوگیری از تکرار)
+# ۴. مدیریت حافظه
 # ==========================================
 SENT_NEWS_FILE = "sent_news.txt"
 SENT_NEWS_LINKS = set()
@@ -97,8 +96,6 @@ if os.path.exists(SENT_NEWS_FILE):
 
 def get_all_news(limit=5):
     final_news = []
-    
-    # ۱. اول خبرهای جدید شناسنامه قانون
     shenas_news = get_shenasnameh_news()
     for n in shenas_news:
         if n['link'] not in SENT_NEWS_LINKS:
@@ -106,7 +103,6 @@ def get_all_news(limit=5):
             final_news.append(n)
             if len(final_news) >= limit: break
     
-    # ۲. اگر کم بود، از خبرگزاری‌ها
     if len(final_news) < limit:
         rss_news = get_news_from_rss()
         for r in rss_news:
@@ -115,13 +111,12 @@ def get_all_news(limit=5):
                 final_news.append(r)
                 if len(final_news) >= limit: break
                 
-    # ۳. اگر باز هم صفر بود (یعنی همه چیز تکراری بود)، پیام مناسب بده
     return final_news
 
 def send_news(chat_id, count):
     news_list = get_all_news(limit=count)
     if not news_list:
-        client.send_message(chat_id, "📭 در حال حاضر خبر جدیدی در ۴۸ ساعت گذشته منتشر نشده است. لطفاً بعداً مراجعه کنید.")
+        print("خبر جدیدی نیست.")
         return
         
     for news in news_list:
@@ -139,27 +134,46 @@ def send_news(chat_id, count):
             time.sleep(2)
         except: pass
 
-print("🤖 ربات روشن شد...")
+# ==========================================
+# ۵. حلقه اصلی (برای سیستم شما - همیشه روشن)
+# ==========================================
+print("🤖 ربات روشن شد و منتظر پیام است...")
+last_update_id = 0
+last_auto_time = time.time()
 
-# ==========================================
-# ۵. متن خوش‌آمدگویی و استارت
-# ==========================================
-try:
-    updates = client.get_updates(offset=0, timeout=5)
-    for update in updates:
-        message = update.message
-        if not message or not message.text: continue
-        
-        if message.text == "/start":
-            welcome_msg = "👋 سلام! به ربات خبری خوش آمدید.\n\nمن اخبار مهم استخدامی، حقوق و دستمزد، معیشت و بخشنامه‌ها را از خبرگزاری‌های معتبر برای شما ارسال می‌کنم.\n\n⏳ در حال آماده‌سازی ۵ خبر اول..."
-            client.send_message(message.chat.id, welcome_msg)
-            send_news(message.chat.id, 5)
+while True:
+    try:
+        updates = client.get_updates(offset=last_update_id + 1, timeout=5)
+        for update in updates:
+            last_update_id = update.update_id
+            message = update.message
             
-except Exception as e:
-    print(f"خطا در دریافت پیام‌ها: {e}")
+            if not message or not message.text: continue
+            
+            if message.text == "/start":
+                welcome_msg = "👋 سلام! به ربات خبری خوش آمدید.\n\nمن اخبار مهم استخدامی، حقوق، معیشت و بخشنامه‌ها را برای شما ارسال می‌کنم.\n\n⏳ در حال آماده‌سازی ۵ خبر اول..."
+                client.send_message(message.chat.id, welcome_msg)
+                send_news(message.chat.id, 5)
 
-# ==========================================
-# ۶. ذخیره حافظه
-# ==========================================
+        # ⏰ ارسال خودکار هر ۱ ساعت (3600 ثانیه)
+        if time.time() - last_auto_time > 3600:
+            print("⏰ ارسال خودکار...")
+            auto_news = get_all_news(limit=3)
+            if auto_news:
+                for news in auto_news:
+                    caption = f"**{news['title']}**\n\n"
+                    if news['summary']: caption += f"{news['summary']}\n\n"
+                    caption += f"🔗 منبع: [{news['source']}]({news['link']})"
+                    try:
+                        if news.get('image_url'): client.send_photo(last_update_id, news['image_url'], caption=caption)
+                        else: client.send_message(last_update_id, caption)
+                        time.sleep(2)
+                    except: pass
+            last_auto_time = time.time()
+            
+    except Exception as e:
+        time.sleep(2)
+
+# ذخیره حافظه
 with open(SENT_NEWS_FILE, "w", encoding="utf-8") as f:
     for link in SENT_NEWS_LINKS: f.write(link + "\n")
