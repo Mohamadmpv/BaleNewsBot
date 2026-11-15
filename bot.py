@@ -7,16 +7,16 @@ from datetime import datetime, timedelta
 from baleRobot import BaleClient
 
 # 🔴 توکن ربات خود را اینجا بگذارید
-TOKEN = "905647704:tqMl5WBTTYC-cVRflr1fi9Y79OEi_ZKWJJA"
+TOKEN = "905647704:Ml_O1U8Oxbi07Spn_vacNhEftkeZ2UtDO-Y"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱. تابع خواندن متن (با تایم‌اوت ۵ ثانیه)
+# ۱. تابع خواندن متن (تایم‌اوت ۵ ثانیه برای جلوگیری از هنگ)
 # ==========================================
 def get_news_summary(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        response = requests.get(url, headers=headers, timeout=5) # تایم‌اوت کم برای جلوگیری از هنگ کردن
+        response = requests.get(url, headers=headers, timeout=5)
         soup = BeautifulSoup(response.text, 'html.parser')
         
         summary = ""
@@ -66,7 +66,7 @@ def get_shenasnameh_news():
     return news_list[:5]
 
 # ==========================================
-# ۳. خواندن از خبرگزاری‌ها (تمام منابع قبلی)
+# ۳. خواندن از خبرگزاری‌ها
 # ==========================================
 RSS_FEEDS = [
     "https://www.mehrnews.com/rss", 
@@ -107,18 +107,24 @@ def get_news_from_rss(limit=5):
     return all_news[:limit]
 
 # ==========================================
-# ۴. حافظه برای جلوگیری از تکرار
+# ۴. حافظه‌ها (جلوگیری از تکرار خبر و ذخیره کاربران)
 # ==========================================
 SENT_NEWS_FILE = "sent_news.txt"
+USERS_FILE = "users.txt"
+
 SENT_NEWS_LINKS = set()
 if os.path.exists(SENT_NEWS_FILE):
     with open(SENT_NEWS_FILE, "r", encoding="utf-8") as f:
         SENT_NEWS_LINKS = set(line.strip() for line in f if line.strip())
 
+KNOWN_USERS = set()
+if os.path.exists(USERS_FILE):
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        KNOWN_USERS = set(line.strip() for line in f if line.strip())
+
 def get_all_news(limit=5):
     final_news = []
     
-    # اول شناسنامه قانون
     shenas_news = get_shenasnameh_news()
     for n in shenas_news:
         if n['link'] not in SENT_NEWS_LINKS:
@@ -126,7 +132,6 @@ def get_all_news(limit=5):
             n['summary'] = get_news_summary(n['link'])
             final_news.append(n)
     
-    # اگر کم بود، از خبرگزاری‌ها
     if len(final_news) < limit:
         rss_news = get_news_from_rss(limit=limit - len(final_news))
         for r in rss_news:
@@ -158,13 +163,10 @@ def send_news(chat_id, count):
         except: pass
 
 print("🤖 ربات روشن شد...")
-KNOWN_USERS = set()
-USERS_FILE = "users.txt"
-if os.path.exists(USERS_FILE):
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        KNOWN_USERS = set(line.strip() for line in f if line.strip())
 
-# بخش اول: پاسخ به پیام‌های جدید (استارت)
+# ==========================================
+# ۵. بخش دریافت پیام‌های جدید (استارت)
+# ==========================================
 try:
     last_update_id = 0
     if os.path.exists("last_id.txt"):
@@ -176,7 +178,10 @@ try:
         last_update_id = update.update_id
         message = update.message
         if not message or not message.text: continue
+        
+        # ذخیره کاربر جدید
         KNOWN_USERS.add(str(message.chat.id))
+        
         if message.text == "/start":
             client.send_message(message.chat.id, "👋 سلام! در حال آماده‌سازی ۵ خبر اول...")
             send_news(message.chat.id, 5)
@@ -186,7 +191,9 @@ try:
 except Exception as e:
     print(f"خطا در دریافت پیام‌ها: {e}")
 
-# بخش دوم: ارسال خودکار به همه کاربران
+# ==========================================
+# ۶. بخش ارسال خودکار به همه کاربران
+# ==========================================
 print(f"در حال ارسال خودکار به {len(KNOWN_USERS)} کاربر...")
 auto_news = get_all_news(limit=3)
 if auto_news:
@@ -201,7 +208,9 @@ if auto_news:
                 time.sleep(2)
             except: pass
 
-# ذخیره حافظه
+# ==========================================
+# ۷. ذخیره نهایی حافظه‌ها
+# ==========================================
 with open(SENT_NEWS_FILE, "w", encoding="utf-8") as f:
     for link in SENT_NEWS_LINKS: f.write(link + "\n")
 
