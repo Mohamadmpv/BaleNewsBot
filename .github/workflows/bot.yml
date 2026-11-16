@@ -32,6 +32,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add sent_news.txt users.txt last_id.txt
-          git commit -m "Update bot memory" || echo "No changes to commit"
-          git push
+          git add sent_news.txt last_id.txt users.txt || true
+          git commit -m "Update memory" || true
+          git push || true
