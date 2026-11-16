@@ -11,21 +11,20 @@ TOKEN = "905647704:Ml_O1U8Oxbi07Spn_vacNhEftkeZ2UtDO-Y"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱ و ۲. منابع خبری (شناسنامه قانون اولویت اول)
+# ۱. منابع خبری (خبرگزاری‌ها اولویت اول برای عکس)
 # ==========================================
 RSS_FEEDS = [
-    "https://www.mehrnews.com/rss",     # مهر
-    "https://www.isna.ir/rss",          # ایسنا
-    "https://www.irna.ir/rss",          # ایرنا
-    "https://www.ilna.ir/feeds/",       # ایلنا
-    "https://news.google.com/rss/search?q=site:farsnews.ir+when:2d&hl=fa&gl=IR&ceid=IR:fa" # فارس (از طریق گوگل نیوز)
+    "https://www.mehrnews.com/rss", 
+    "https://www.isna.ir/rss", 
+    "https://www.irna.ir/rss",
+    "https://www.ilna.ir/feeds/",
+    "https://news.google.com/rss/search?q=site:farsnews.ir+when:2d&hl=fa&gl=IR&ceid=IR:fa"
 ]
-
-KEYWORDS_MUST = ["حقوق", "دستمزد", "استخدام", "کالابرگ", "بازنشستگی", "بخشنامه", "قرارداد", "معیشت", "سازمان اداری"]
-KEYWORDS_IGNORE = ["حقوق بشر", "سیاسی", "زندان", "دادگاه", "کروبی", "انتخابات", "فوتبال", "ورزش", "سفر", "دیدار"]
+KEYWORDS_MUST = ["حقوق", "دستمزد", "استخدام", "کالابرگ", "بازنشستگی", "بخشنامه", "قرارداد", "معیشت"]
+KEYWORDS_IGNORE = ["حقوق بشر", "سیاسی", "زندان", "دادگاه", "کروبی", "انتخابات", "فوتبال", "ورزش"]
 
 # ==========================================
-# ۳. تابع خواندن متن (حداقل ۱۰۰ کلمه)
+# ۲. تابع استخراج متن (حداقل ۱۰۰ کلمه)
 # ==========================================
 def get_news_summary(url):
     try:
@@ -42,34 +41,16 @@ def get_news_summary(url):
     except: return ""
 
 # ==========================================
-# ۶. بررسی تاریخ ۴۸ ساعت
+# ۳. فیلتر تاریخ ۴۸ ساعت
 # ==========================================
 def is_recent(entry):
     published = entry.get('published_parsed') or entry.get('updated_parsed')
     if not published: return False
     news_date = datetime.fromtimestamp(time.mktime(published))
-    return (datetime.now() - news_date) < timedelta(days=2) # ۴۸ ساعت
+    return (datetime.now() - news_date) < timedelta(days=2)
 
 # ==========================================
-# ۱. خواندن از شناسنامه قانون
-# ==========================================
-def get_shenasnameh_news():
-    news_list = []
-    try:
-        response = requests.get("https://shenasname.ir", headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for link in soup.find_all('a', href=True):
-                title = link.get_text(strip=True)
-                if len(title) > 15 and any(kw in title for kw in KEYWORDS_MUST):
-                    href = link['href']
-                    if href.startswith('/'): href = "https://shenasname.ir" + href
-                    news_list.append({"title": title, "link": href, "source": "شناسنامه قانون", "image_url": None, "summary": ""})
-    except: pass
-    return news_list
-
-# ==========================================
-# ۲. خواندن از خبرگزاری‌ها
+# ۴. خواندن از خبرگزاری‌ها
 # ==========================================
 def get_news_from_rss():
     all_news = []
@@ -89,7 +70,25 @@ def get_news_from_rss():
     return all_news
 
 # ==========================================
-# ۹. حافظه ضد تکرار
+# ۵. خواندن از شناسنامه قانون (اولویت دوم)
+# ==========================================
+def get_shenasnameh_news():
+    news_list = []
+    try:
+        response = requests.get("https://shenasname.ir", headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            for link in soup.find_all('a', href=True):
+                title = link.get_text(strip=True)
+                if len(title) > 15 and any(kw in title for kw in KEYWORDS_MUST):
+                    href = link['href']
+                    if href.startswith('/'): href = "https://shenasname.ir" + href
+                    news_list.append({"title": title, "link": href, "source": "شناسنامه قانون", "image_url": None, "summary": ""})
+    except: pass
+    return news_list
+
+# ==========================================
+# ۶. حافظه ضد تکرار
 # ==========================================
 SENT_NEWS_FILE = "sent_news.txt"
 LAST_ID_FILE = "last_id.txt"
@@ -108,30 +107,30 @@ if os.path.exists(USERS_FILE):
     with open(USERS_FILE, "r") as f: USERS = set(l.strip() for l in f)
 
 # ==========================================
-# ۵. جمع‌آوری ۵ خبر اول
+# ۷. جمع‌آوری خبر
 # ==========================================
 def get_all_news(limit=5):
     final_news = []
     
-    # اولویت اول: شناسنامه قانون
-    shenas_news = get_shenasnameh_news()
-    for n in shenas_news:
-        if n['link'] not in SENT_NEWS_LINKS:
-            summary = get_news_summary(n['link'])
+    # اول خبرگزاری‌ها (چون عکس دارند)
+    rss_news = get_news_from_rss()
+    for r in rss_news:
+        if r['link'] not in SENT_NEWS_LINKS:
+            summary = get_news_summary(r['link'])
             if len(summary.split()) >= 100:
-                n['summary'] = summary
-                final_news.append(n)
+                r['summary'] = summary
+                final_news.append(r)
             if len(final_news) >= limit: break
     
-    # اگر کم بود، خبرگزاری‌ها
+    # اگر کم بود، شناسنامه قانون
     if len(final_news) < limit:
-        rss_news = get_news_from_rss()
-        for r in rss_news:
-            if r['link'] not in SENT_NEWS_LINKS:
-                summary = get_news_summary(r['link'])
+        shenas_news = get_shenasnameh_news()
+        for n in shenas_news:
+            if n['link'] not in SENT_NEWS_LINKS:
+                summary = get_news_summary(n['link'])
                 if len(summary.split()) >= 100:
-                    r['summary'] = summary
-                    final_news.append(r)
+                    n['summary'] = summary
+                    final_news.append(n)
                 if len(final_news) >= limit: break
                 
     return final_news
@@ -154,8 +153,9 @@ def send_news(chat_id, count):
         except: pass
 
 # ==========================================
-# ۴. پاسخ به پیام‌های جدید (فقط یک‌بار)
+# ۸. پاسخ به پیام‌های جدید (استارت)
 # ==========================================
+print("🤖 ربات در گیت‌هاب اجرا شد...")
 try:
     updates = client.get_updates(offset=LAST_ID + 1, timeout=5)
     for update in updates:
@@ -165,12 +165,14 @@ try:
         USERS.add(str(message.chat.id))
         
         if message.text == "/start":
+            # ۴. خوش‌آمدگویی فقط یک‌بار
             client.send_message(message.chat.id, "👋 سلام! در حال آماده‌سازی ۵ خبر اول...")
             send_news(message.chat.id, 5)
-except: pass
+except Exception as e:
+    print(f"خطا در دریافت پیام: {e}")
 
 # ==========================================
-# ۸. ارسال خودکار به کاربران (هر ۱ ساعت)
+# ۹. ارسال خودکار به کاربران (هر ۱ ساعت)
 # ==========================================
 print(f"در حال ارسال خودکار به {len(USERS)} کاربر...")
 auto_news = get_all_news(limit=3)
@@ -185,7 +187,7 @@ if auto_news:
             except: pass
 
 # ==========================================
-# ۹. ذخیره حافظه
+# ۱۰. ذخیره حافظه
 # ==========================================
 with open(LAST_ID_FILE, "w") as f: f.write(str(LAST_ID))
 with open(SENT_NEWS_FILE, "w") as f:
