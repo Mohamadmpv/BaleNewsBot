@@ -11,25 +11,20 @@ TOKEN = "905647704:Ml_O1U8Oxbi07Spn_vacNhEftkeZ2UtDO-Y"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱. منابع خبری (خبرگزاری‌ها اولویت اول برای عکس)
+# تنظیمات واسطه (Proxy) برای دور زدن تحریم
 # ==========================================
-RSS_FEEDS = [
-    "https://www.mehrnews.com/rss", 
-    "https://www.isna.ir/rss", 
-    "https://www.irna.ir/rss",
-    "https://www.ilna.ir/feeds/",
-    "https://news.google.com/rss/search?q=site:farsnews.ir+when:2d&hl=fa&gl=IR&ceid=IR:fa"
-]
-KEYWORDS_MUST = ["حقوق", "دستمزد", "استخدام", "کالابرگ", "بازنشستگی", "بخشنامه", "قرارداد", "معیشت"]
-KEYWORDS_IGNORE = ["حقوق بشر", "سیاسی", "زندان", "دادگاه", "کروبی", "انتخابات", "فوتبال", "ورزش"]
+PROXIES = {
+    "http": "http://185.132.133.50:8080",
+    "https": "http://185.132.133.50:8080"
+}
 
 # ==========================================
-# ۲. تابع استخراج متن (حداقل ۱۰۰ کلمه)
+# ۱. تابع استخراج متن (با استفاده از Proxy)
 # ==========================================
 def get_news_summary(url):
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
         soup = BeautifulSoup(response.text, 'html.parser')
         summary = ""
         for p in soup.find_all('p'):
@@ -41,7 +36,7 @@ def get_news_summary(url):
     except: return ""
 
 # ==========================================
-# ۳. فیلتر تاریخ ۴۸ ساعت
+# ۲. فیلتر تاریخ ۴۸ ساعت
 # ==========================================
 def is_recent(entry):
     published = entry.get('published_parsed') or entry.get('updated_parsed')
@@ -50,37 +45,35 @@ def is_recent(entry):
     return (datetime.now() - news_date) < timedelta(days=2)
 
 # ==========================================
-# ۴. خواندن از خبرگزاری‌ها
+# ۳. خواندن از خبرگزاری‌ها (با Proxy)
 # ==========================================
 def get_news_from_rss():
     all_news = []
-    for feed_url in RSS_FEEDS:
+    for feed_url in ["https://www.mehrnews.com/rss", "https://www.isna.ir/rss", "https://www.irna.ir/rss"]:
         try:
             feed = feedparser.parse(feed_url)
             for entry in feed.entries[:10]:
                 title = entry.title
-                if any(bad in title for bad in KEYWORDS_IGNORE): continue
-                if any(good in title for good in KEYWORDS_MUST):
+                if any(bad in title for bad in ["حقوق بشر", "سیاسی", "ورزش", "فوتبال"]): continue
+                if any(good in title for good in ["حقوق", "استخدام", "بازنشستگی", "کالابرگ", "بخشنامه"]):
                     if not is_recent(entry): continue
-                    image_url = None
-                    if hasattr(entry, 'media_content') and entry.media_content:
-                        image_url = entry.media_content[0].get('url')
+                    image_url = entry.media_content[0].get('url') if hasattr(entry, 'media_content') else None
                     all_news.append({"title": title, "link": entry.link, "source": feed.feed.get('title', 'منبع'), "image_url": image_url, "summary": ""})
         except: continue
     return all_news
 
 # ==========================================
-# ۵. خواندن از شناسنامه قانون (اولویت دوم)
+# ۴. خواندن از شناسنامه قانون (با Proxy)
 # ==========================================
 def get_shenasnameh_news():
     news_list = []
     try:
-        response = requests.get("https://shenasname.ir", headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+        response = requests.get("https://shenasname.ir", headers={'User-Agent': 'Mozilla/5.0'}, proxies=PROXIES, timeout=15)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             for link in soup.find_all('a', href=True):
                 title = link.get_text(strip=True)
-                if len(title) > 15 and any(kw in title for kw in KEYWORDS_MUST):
+                if len(title) > 15 and any(kw in title for kw in ["استخدام", "حقوق", "بخشنامه"]):
                     href = link['href']
                     if href.startswith('/'): href = "https://shenasname.ir" + href
                     news_list.append({"title": title, "link": href, "source": "شناسنامه قانون", "image_url": None, "summary": ""})
@@ -88,7 +81,7 @@ def get_shenasnameh_news():
     return news_list
 
 # ==========================================
-# ۶. حافظه ضد تکرار
+# ۵. حافظه ضد تکرار
 # ==========================================
 SENT_NEWS_FILE = "sent_news.txt"
 LAST_ID_FILE = "last_id.txt"
@@ -107,32 +100,25 @@ if os.path.exists(USERS_FILE):
     with open(USERS_FILE, "r") as f: USERS = set(l.strip() for l in f)
 
 # ==========================================
-# ۷. جمع‌آوری خبر
+# ۶. جمع‌آوری خبر
 # ==========================================
 def get_all_news(limit=5):
     final_news = []
-    
-    # اول خبرگزاری‌ها (چون عکس دارند)
-    rss_news = get_news_from_rss()
-    for r in rss_news:
+    for r in get_news_from_rss():
         if r['link'] not in SENT_NEWS_LINKS:
             summary = get_news_summary(r['link'])
             if len(summary.split()) >= 100:
                 r['summary'] = summary
                 final_news.append(r)
             if len(final_news) >= limit: break
-    
-    # اگر کم بود، شناسنامه قانون
     if len(final_news) < limit:
-        shenas_news = get_shenasnameh_news()
-        for n in shenas_news:
+        for n in get_shenasnameh_news():
             if n['link'] not in SENT_NEWS_LINKS:
                 summary = get_news_summary(n['link'])
                 if len(summary.split()) >= 100:
                     n['summary'] = summary
                     final_news.append(n)
                 if len(final_news) >= limit: break
-                
     return final_news
 
 def send_news(chat_id, count):
@@ -140,20 +126,17 @@ def send_news(chat_id, count):
     if not news_list:
         client.send_message(chat_id, "📭 در حال حاضر خبر جدیدی در ۴۸ ساعت گذشته پیدا نشد.")
         return
-        
     for news in news_list:
         caption = f"**{news['title']}**\n\n{news['summary']}\n\n🔗 منبع: [{news['source']}]({news['link']})"
         try:
-            if news.get('image_url'): 
-                client.send_photo(chat_id, news['image_url'], caption=caption)
-            else: 
-                client.send_message(chat_id, caption)
+            if news.get('image_url'): client.send_photo(chat_id, news['image_url'], caption=caption)
+            else: client.send_message(chat_id, caption)
             SENT_NEWS_LINKS.add(news['link'])
             time.sleep(2)
         except: pass
 
 # ==========================================
-# ۸. پاسخ به پیام‌های جدید (استارت)
+# ۷. پاسخ به پیام‌های جدید (استارت)
 # ==========================================
 print("🤖 ربات در گیت‌هاب اجرا شد...")
 try:
@@ -165,14 +148,13 @@ try:
         USERS.add(str(message.chat.id))
         
         if message.text == "/start":
-            # ۴. خوش‌آمدگویی فقط یک‌بار
             client.send_message(message.chat.id, "👋 سلام! در حال آماده‌سازی ۵ خبر اول...")
             send_news(message.chat.id, 5)
 except Exception as e:
     print(f"خطا در دریافت پیام: {e}")
 
 # ==========================================
-# ۹. ارسال خودکار به کاربران (هر ۱ ساعت)
+# ۸. ارسال خودکار به کاربران (هر ۱ ساعت)
 # ==========================================
 print(f"در حال ارسال خودکار به {len(USERS)} کاربر...")
 auto_news = get_all_news(limit=3)
@@ -187,7 +169,7 @@ if auto_news:
             except: pass
 
 # ==========================================
-# ۱۰. ذخیره حافظه
+# ۹. ذخیره حافظه
 # ==========================================
 with open(LAST_ID_FILE, "w") as f: f.write(str(LAST_ID))
 with open(SENT_NEWS_FILE, "w") as f:
