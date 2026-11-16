@@ -11,7 +11,7 @@ TOKEN = "905647704:Ml_O1U8Oxbi07Spn_vacNhEftkeZ2UtDO-Y"
 client = BaleClient(TOKEN)
 
 # ==========================================
-# ۱. توابع خواندن خبر (مثل کد سیستم)
+# ۱. توابع خواندن خبر (دقیقاً مثل سیستم شما)
 # ==========================================
 def get_news_summary(url):
     try:
@@ -27,6 +27,27 @@ def get_news_summary(url):
         return summary.strip()
     except: return ""
 
+def is_recent(entry):
+    published = entry.get('published_parsed') or entry.get('updated_parsed')
+    if not published: return False
+    news_date = datetime.fromtimestamp(time.mktime(published))
+    return (datetime.now() - news_date) < timedelta(days=2) # فیلتر ۴۸ ساعت
+
+def get_news_from_rss():
+    all_news = []
+    for feed_url in ["https://www.mehrnews.com/rss", "https://www.isna.ir/rss", "https://www.ilna.ir/feeds/", "https://www.irna.ir/rss"]:
+        try:
+            feed = feedparser.parse(feed_url)
+            for entry in feed.entries[:10]:
+                title = entry.title
+                if any(bad in title for bad in ["حقوق بشر", "سیاسی", "ورزش", "فوتبال"]): continue
+                if any(good in title for good in ["حقوق", "استخدام", "بازنشستگی", "کالابرگ", "بخشنامه"]):
+                    if not is_recent(entry): continue
+                    image_url = entry.media_content[0].get('url') if hasattr(entry, 'media_content') else None
+                    all_news.append({"title": title, "link": entry.link, "source": feed.feed.get('title', 'منبع'), "image_url": image_url, "summary": ""})
+        except: continue
+    return all_news
+
 def get_shenasnameh_news():
     news_list = []
     try:
@@ -35,40 +56,15 @@ def get_shenasnameh_news():
             soup = BeautifulSoup(response.text, 'html.parser')
             for link in soup.find_all('a', href=True):
                 title = link.get_text(strip=True)
-                if len(title) > 15 and any(kw in title for kw in ["استخدام", "حقوق", "بخشنامه", "قانون"]):
+                if len(title) > 15 and any(kw in title for kw in ["استخدام", "حقوق", "بخشنامه"]):
                     href = link['href']
                     if href.startswith('/'): href = "https://shenasname.ir" + href
                     news_list.append({"title": title, "link": href, "source": "شناسنامه قانون", "image_url": None, "summary": ""})
     except: pass
     return news_list
 
-RSS_FEEDS = ["https://www.mehrnews.com/rss", "https://www.isna.ir/rss", "https://www.ilna.ir/feeds/"]
-KEYWORDS_MUST = ["حقوق", "دستمزد", "استخدام", "کالابرگ", "بازنشستگی", "بخشنامه", "قرارداد", "معیشت"]
-KEYWORDS_IGNORE = ["حقوق بشر", "سیاسی", "زندان", "دادگاه", "کروبی", "انتخابات", "فوتبال", "ورزش"]
-
-def is_recent(entry):
-    published = entry.get('published_parsed') or entry.get('updated_parsed')
-    if not published: return False
-    news_date = datetime.fromtimestamp(time.mktime(published))
-    return (datetime.now() - news_date) < timedelta(days=3) # فیلتر ۳ روزه
-
-def get_news_from_rss():
-    all_news = []
-    for feed_url in RSS_FEEDS:
-        try:
-            feed = feedparser.parse(feed_url)
-            for entry in feed.entries[:10]:
-                title = entry.title
-                if any(bad in title for bad in KEYWORDS_IGNORE): continue
-                if any(good in title for good in KEYWORDS_MUST):
-                    if not is_recent(entry): continue
-                    image_url = entry.media_content[0].get('url') if hasattr(entry, 'media_content') else None
-                    all_news.append({"title": title, "link": entry.link, "source": feed.feed.get('title', 'منبع'), "image_url": image_url, "summary": ""})
-        except: continue
-    return all_news
-
 # ==========================================
-# ۲. خواندن حافظه‌ها
+# ۲. حافظه‌های گیت‌هاب
 # ==========================================
 SENT_NEWS_FILE = "sent_news.txt"
 LAST_ID_FILE = "last_id.txt"
@@ -86,9 +82,6 @@ USERS = set()
 if os.path.exists(USERS_FILE):
     with open(USERS_FILE, "r") as f: USERS = set(l.strip() for l in f)
 
-# ==========================================
-# ۳. جمع‌آوری خبر
-# ==========================================
 def get_all_news(limit=3):
     final_news = []
     for r in get_news_from_rss():
@@ -109,7 +102,7 @@ def get_all_news(limit=3):
     return final_news
 
 # ==========================================
-# ۴. پاسخ به پیام‌های جدید (فقط اگر سیستم خاموش باشد)
+# ۳. پاسخ به پیام‌های جدید (استارت)
 # ==========================================
 try:
     updates = client.get_updates(offset=LAST_ID + 1, timeout=5)
@@ -132,7 +125,7 @@ try:
 except: pass
 
 # ==========================================
-# ۵. ارسال خودکار به کاربران (هر ۱ ساعت)
+# ۴. ارسال خودکار به همه کاربران (هر ۱ ساعت)
 # ==========================================
 print(f"در حال ارسال خودکار به {len(USERS)} کاربر...")
 auto_news = get_all_news(limit=3)
@@ -147,7 +140,7 @@ if auto_news:
             except: pass
 
 # ==========================================
-# ۶. ذخیره حافظه
+# ۵. ذخیره حافظه
 # ==========================================
 with open(LAST_ID_FILE, "w") as f: f.write(str(LAST_ID))
 with open(SENT_NEWS_FILE, "w") as f:
